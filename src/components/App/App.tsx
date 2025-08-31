@@ -1,50 +1,70 @@
+import fetchMovies from "../../services/movieService";
 import css from "./App.module.css";
-// import { useState } from "react";
-import CafeInfo from "../CafeInfo/CafeInfo";
-import VoteOptions from "../VoteOptions/VoteOptions";
-import { useState } from "react";
-import type { Votes, VoteType } from "../../types/votes";
-import VoteStats from "../VoteStats/VoteStats";
-import Notification from "../Notification/Notification";
+
+import type { Movie } from "../../types/movie";
+import { useEffect, useState } from "react";
+import SearchBar from "../SearchBar/SearchBar";
+import toast, { Toaster } from "react-hot-toast";
+import MovieGrid from "../MovieGrid/MovieGrid";
+import Loader from "../Loader/Loader";
+import ErrorMessage from "../ErrorMessage/ErrorMessage";
+import MovieModal from "../MovieModal/MovieModal";
 
 export default function App() {
-  const [votes, setVotes] = useState<Votes>({
-    good: 0,
-    neutral: 0,
-    bad: 0,
-  });
+  const [movies, setMovies] = useState<Movie[]>([]);
+  const [searchWord, setSearchWord] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isError, setIsError] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
 
-  const handleVotes = (type: VoteType) => {
-    setVotes({
-      ...votes,
-      [type]: votes[type] + 1,
-    });
+  const openModal = (movie: Movie) => {
+    setSelectedMovie(movie);
+    setIsModalOpen(true);
   };
 
-  const resetVotes = () => {
-    setVotes({ good: 0, neutral: 0, bad: 0 });
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setSelectedMovie(null);
   };
 
-  const totalVotes: number = votes.good + votes.bad + votes.neutral;
+  const handleSearch = (query: string) => {
+    setSearchWord(query);
+  };
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setMovies([]);
+        setIsLoading(true);
+        setIsError(false);
+
+        const response = await fetchMovies(searchWord);
+        if (response.length === 0) {
+          return toast.error("No movies found for your request.");
+        }
+
+        setMovies(response);
+      } catch {
+        setIsError(true);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    if (searchWord.trim() !== "") {
+      fetchData();
+    }
+  }, [searchWord]);
 
   return (
     <div className={css.app}>
-      <CafeInfo />
-      <VoteOptions
-        onVote={handleVotes}
-        onReset={resetVotes}
-        canReset={totalVotes > 0}
-      />
-      {totalVotes > 0 ? (
-        <VoteStats
-          votes={votes}
-          totalVotes={totalVotes}
-          positiveRate={
-            totalVotes ? Math.round((votes.good / totalVotes) * 100) : 0
-          }
-        />
-      ) : (
-        <Notification />
+      <SearchBar onSubmit={handleSearch} />
+      <Toaster />
+      {isLoading && <Loader />}
+      {isError && <ErrorMessage />}
+      <MovieGrid movies={movies} onSelect={openModal} />
+      {isModalOpen && selectedMovie && (
+        <MovieModal movie={selectedMovie} onClose={closeModal} />
       )}
     </div>
   );
